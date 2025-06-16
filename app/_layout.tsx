@@ -15,7 +15,10 @@ export default function RootLayout() {
       name="userspage"
       options={{headerShown:false}}
       />
-
+       <Stack.Screen 
+      name="drivers"
+      options={{headerShown:false}}
+      />
     </Stack>
   )
 }

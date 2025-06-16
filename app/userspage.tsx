@@ -23,7 +23,9 @@ const UsersPage = () => {
           <Text style={styles.heading}>Select Your Role</Text>
 
           <View style={styles.cardContainer}>
-            <TouchableOpacity style={styles.card}>
+            <TouchableOpacity style={styles.card}
+            onPress={()=>router.push('/drivers')}
+            >
               <Bus color="black" size={36} />
               <Text style={styles.cardText}>Driver</Text>
             </TouchableOpacity>
