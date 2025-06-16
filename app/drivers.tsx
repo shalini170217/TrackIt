@@ -230,8 +230,16 @@ export default function DriversPage() {
           </View>
         )}
 <TouchableOpacity
-  style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]} 
-  onPress={() => router.push('/map')} // Teal color
+  style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]}
+  onPress={() => {
+    if (!existingDriverId) {
+      return Alert.alert('Driver Not Saved', 'Please save your details first.');
+    }
+    router.push({
+      pathname: '/map',
+      params: { driverId: existingDriverId },
+    });
+  }}
 >
   <Text style={styles.buttonText}>Start Journey Today</Text>
 </TouchableOpacity>
