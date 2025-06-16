@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, ImageBackground } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -86,6 +86,9 @@ export default function CreateRoute() {
   };
 
   return (
+    <ImageBackground  source={require('../assets/images/yellowave.jpg')}
+          style={styles.background}
+          resizeMode="cover">
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.heading}>{routeId ? 'Edit Route Details' : 'Create Route'}</Text>
@@ -124,13 +127,17 @@ export default function CreateRoute() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+    background: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    
     paddingHorizontal: 20,
   },
   scrollContainer: {

@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, FlatList, StyleSheet ,ImageBackground} from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -86,6 +86,9 @@ export default function AddStops() {
   };
 
   return (
+    <ImageBackground source={require('../assets/images/yellowave.jpg')}
+          style={styles.background}
+          resizeMode="cover">
     <SafeAreaView style={styles.container}>
       <Text style={styles.heading}>Add Stops to Route</Text>
 
@@ -129,14 +132,19 @@ export default function AddStops() {
         ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#999' }}>No stops yet.</Text>}
       />
     </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+        background: {
+    flex: 1,
+  },
+
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    
   },
   heading: {
     fontSize: 26,

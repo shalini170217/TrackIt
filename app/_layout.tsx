@@ -12,6 +12,14 @@ export default function RootLayout() {
       options={{headerShown:false}}
       />
       <Stack.Screen 
+      name="addStops"
+      options={{headerShown:false}}
+      />
+      <Stack.Screen 
+      name="createRoute"
+      options={{headerShown:false}}
+      />
+      <Stack.Screen 
       name="userspage"
       options={{headerShown:false}}
       />

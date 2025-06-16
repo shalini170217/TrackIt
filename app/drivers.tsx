@@ -1,16 +1,27 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  ImageBackground,
+} from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../src/lib/supabase';
-import { router } from 'expo-router'; // ✅ To navigate to Route creation screen
+import { router } from 'expo-router';
 
 export default function DriversPage() {
   const [name, setName] = useState('');
   const [busNumber, setBusNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [existingDriverId, setExistingDriverId] = useState(null);
+  const [existingDriverId, setExistingDriverId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [routesWithStops, setRoutesWithStops] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDriverDetails();
@@ -39,9 +50,24 @@ export default function DriversPage() {
       setBusNumber(data.bus_number);
       setPhoneNumber(data.phone);
       setExistingDriverId(data.id);
+      fetchRoutesAndStops(data.id);
     }
 
     setFetching(false);
+  };
+
+  const fetchRoutesAndStops = async (driverId: string) => {
+    const { data: routes, error } = await supabase
+      .from('routes')
+      .select('*, stops(*)')
+      .eq('driver_id', driverId);
+
+    if (error) {
+      console.log(error.message);
+      return Alert.alert('Error fetching routes', error.message);
+    }
+
+    setRoutesWithStops(routes || []);
   };
 
   const handleSaveDriver = async () => {
@@ -56,7 +82,6 @@ export default function DriversPage() {
 
     let error;
     if (existingDriverId) {
-      // Update existing driver
       ({ error } = await supabase
         .from('drivers')
         .update({
@@ -66,7 +91,6 @@ export default function DriversPage() {
         })
         .eq('id', existingDriverId));
     } else {
-      // Insert new driver
       const { data, error: insertError } = await supabase
         .from('drivers')
         .insert([
@@ -81,7 +105,8 @@ export default function DriversPage() {
         .single();
 
       if (!insertError && data) {
-        setExistingDriverId(data.id); // Save the driver's id for route creation
+        setExistingDriverId(data.id);
+        fetchRoutesAndStops(data.id);
       }
       error = insertError;
     }
@@ -91,6 +116,8 @@ export default function DriversPage() {
     if (error) return Alert.alert('Error', error.message);
 
     Alert.alert('Success', existingDriverId ? 'Driver details updated' : 'Driver details saved');
+
+    if (existingDriverId) fetchRoutesAndStops(existingDriverId);
   };
 
   const handleCreateRoute = () => {
@@ -98,8 +125,8 @@ export default function DriversPage() {
       return Alert.alert('Driver Not Saved', 'Please save your details first.');
     }
     router.push({
-      pathname: '/createRoute', // ✅ Make sure you have this route
-      params: { driverId: existingDriverId }, // ✅ Pass driverId as route param
+      pathname: '/createRoute',
+      params: { driverId: existingDriverId },
     });
   };
 
@@ -112,24 +139,49 @@ export default function DriversPage() {
   }
 
   return (
+    <ImageBackground
+          source={require('../assets/images/yellowave.jpg')}
+          style={styles.background}
+          resizeMode="cover"
+        >
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.heading}>Driver Details</Text>
 
+        {/* ✅ Name with required symbol */}
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>
+            Name <Text style={styles.required}>*</Text>
+          </Text>
+        </View>
         <TextInput
-          placeholder="Name"
+          placeholder="Enter your name"
           value={name}
           onChangeText={setName}
           style={styles.input}
         />
+
+        {/* ✅ Bus Number with required symbol */}
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>
+            Bus Number <Text style={styles.required}>*</Text>
+          </Text>
+        </View>
         <TextInput
-          placeholder="Bus Number"
+          placeholder="Enter bus number"
           value={busNumber}
           onChangeText={setBusNumber}
           style={styles.input}
         />
+
+        {/* ✅ Phone Number with required symbol */}
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>
+            Phone Number <Text style={styles.required}>*</Text>
+          </Text>
+        </View>
         <TextInput
-          placeholder="Phone Number"
+          placeholder="Enter your number"
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           keyboardType="phone-pad"
@@ -141,10 +193,11 @@ export default function DriversPage() {
           onPress={handleSaveDriver}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>{loading ? 'Saving...' : existingDriverId ? 'Update Details' : 'Save Driver'}</Text>
+          <Text style={styles.buttonText}>
+            {loading ? 'Saving...' : existingDriverId ? 'Update Details' : 'Save Driver'}
+          </Text>
         </TouchableOpacity>
 
-        {/* ✅ Show Create Route button only if driver is saved */}
         {existingDriverId && (
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#fcf805', marginTop: 16 }]}
@@ -153,15 +206,42 @@ export default function DriversPage() {
             <Text style={[styles.buttonText, { color: '#000' }]}>Create Route</Text>
           </TouchableOpacity>
         )}
+
+        {/* ✅ ROUTES + STOPS DISPLAY */}
+        {routesWithStops.length > 0 && (
+          <View style={{ marginTop: 30 }}>
+            <Text style={styles.routesHeading}>Your Routes</Text>
+            {routesWithStops.map((route) => (
+              <View key={route.id} style={styles.routeCard}>
+                <Text style={styles.routeTitle}>🚌 {route.route_name}</Text>
+                {route.stops.length > 0 ? (
+                  route.stops
+                    .sort((a, b) => a.order - b.order)
+                    .map((stop: any) => (
+                      <Text key={stop.id} style={styles.stopText}>
+                        📍 {stop.stop_name}
+                      </Text>
+                    ))
+                ) : (
+                  <Text style={{ color: '#999', marginTop: 4 }}>No stops added yet</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
+     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+   background: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+   
     paddingHorizontal: 20,
   },
   scrollContainer: {
@@ -173,6 +253,37 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 20,
     textAlign: 'center',
+  },
+  routesHeading: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  routeCard: {
+    backgroundColor: '#f2f2f2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  routeTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  stopText: {
+    fontSize: 16,
+    marginLeft: 6,
+    marginBottom: 2,
+  },
+  labelContainer: {
+    marginBottom: 4,
+  },
+  labelText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  required: {
+    color: 'red',
   },
   input: {
     borderWidth: 1,
