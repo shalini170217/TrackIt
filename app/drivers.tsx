@@ -229,6 +229,14 @@ export default function DriversPage() {
             ))}
           </View>
         )}
+<TouchableOpacity
+  style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]} 
+  onPress={() => router.push('/map')} // Teal color
+>
+  <Text style={styles.buttonText}>Start Journey Today</Text>
+</TouchableOpacity>
+
+
       </ScrollView>
     </SafeAreaView>
      </ImageBackground>

@@ -27,6 +27,10 @@ export default function RootLayout() {
       name="drivers"
       options={{headerShown:false}}
       />
+       <Stack.Screen 
+      name="map"
+      options={{headerShown:false}}
+      />
     </Stack>
   )
 }
