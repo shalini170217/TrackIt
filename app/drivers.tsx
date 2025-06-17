@@ -13,7 +13,8 @@ import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../src/lib/supabase';
 import { router } from 'expo-router';
-import * as Location from 'expo-location'; // ✅ Added for location tracking
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 
 export default function DriversPage() {
   const [name, setName] = useState('');
@@ -23,12 +24,13 @@ export default function DriversPage() {
   const [existingDriverId, setExistingDriverId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [routesWithStops, setRoutesWithStops] = useState<any[]>([]);
-  const [isSharingLocation, setIsSharingLocation] = useState(false); // ✅ Toggle State
-  const [locationWatcher, setLocationWatcher] = useState<any>(null); // ✅ Watcher Ref
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [locationWatcher, setLocationWatcher] = useState<any>(null);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetchDriverDetails();
-    return () => stopSharingLocation(); // ✅ Cleanup on unmount
+    return () => stopSharingLocation();
   }, []);
 
   const fetchDriverDetails = async () => {
@@ -45,8 +47,8 @@ export default function DriversPage() {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.log(error.message);
-      Alert.alert('Error fetching driver details', error.message);
+      console.error(error.message);
+      Alert.alert('Error', error.message);
     }
 
     if (data) {
@@ -67,8 +69,9 @@ export default function DriversPage() {
       .eq('driver_id', driverId);
 
     if (error) {
-      console.log(error.message);
-      return Alert.alert('Error fetching routes', error.message);
+      console.error(error.message);
+      Alert.alert('Error', error.message);
+      return;
     }
 
     setRoutesWithStops(routes || []);
@@ -76,15 +79,15 @@ export default function DriversPage() {
 
   const handleSaveDriver = async () => {
     if (!name.trim() || !busNumber.trim() || !phoneNumber.trim()) {
-      return Alert.alert('Missing Info', 'Please fill all the fields.');
+      return Alert.alert('Missing Info', 'Please fill all fields.');
     }
 
     const user = (await supabase.auth.getUser()).data?.user;
     if (!user) return Alert.alert('Error', 'User not authenticated');
 
     setLoading(true);
-
     let error;
+
     if (existingDriverId) {
       ({ error } = await supabase
         .from('drivers')
@@ -119,22 +122,18 @@ export default function DriversPage() {
 
     if (error) return Alert.alert('Error', error.message);
 
-    Alert.alert('Success', existingDriverId ? 'Driver details updated' : 'Driver details saved');
+    Alert.alert('Success', existingDriverId ? 'Details updated' : 'Details saved');
 
     if (existingDriverId) fetchRoutesAndStops(existingDriverId);
   };
 
   const handleCreateRoute = () => {
     if (!existingDriverId) {
-      return Alert.alert('Driver Not Saved', 'Please save your details first.');
+      return Alert.alert('Driver Not Saved', 'Save your details first.');
     }
-    router.push({
-      pathname: '/createRoute',
-      params: { driverId: existingDriverId },
-    });
+    router.push({ pathname: '/createRoute', params: { driverId: existingDriverId } });
   };
 
-  // ✅ Start Sharing Location
   const startSharingLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -151,21 +150,18 @@ export default function DriversPage() {
         distanceInterval: 5,
       },
       async (location) => {
-        await supabase
-          .from('driver_locations')
-          .upsert({
-            driver_id: existingDriverId,
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            updated_at: new Date().toISOString(),
-          });
+        await supabase.from('driver_locations').upsert({
+          driver_id: existingDriverId,
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          updated_at: new Date().toISOString(),
+        });
       }
     );
 
     setLocationWatcher(watcher);
   };
 
-  // ✅ Stop Sharing Location
   const stopSharingLocation = () => {
     if (locationWatcher) {
       locationWatcher.remove();
@@ -180,6 +176,33 @@ export default function DriversPage() {
       startSharingLocation();
     }
     setIsSharingLocation((prev) => !prev);
+  };
+
+  const handleSend = async () => {
+    if (message.trim() === '') {
+      return Alert.alert('Empty', 'Please type a message.');
+    }
+
+    const user = (await supabase.auth.getUser()).data?.user;
+    if (!user || !existingDriverId) {
+      return Alert.alert('Error', 'User not authenticated or driver details missing.');
+    }
+
+    const { error } = await supabase.from('driver_messages').insert([
+      {
+        driver_id: existingDriverId,
+        message: message.trim(),
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    if (error) {
+      console.error(error);
+      return Alert.alert('Error', 'Failed to send message.');
+    }
+
+    Alert.alert('Sent', 'Your message has been sent to passengers.');
+    setMessage('');
   };
 
   if (fetching) {
@@ -197,18 +220,12 @@ export default function DriversPage() {
       resizeMode="cover"
     >
       <SafeAreaView style={styles.container}>
-        {/* ✅ Toggle Button */}
         <TouchableOpacity
           onPress={toggleLocationSharing}
-          style={{
-            position: 'absolute',
-            top: 20,
-            left: 20,
-            backgroundColor: isSharingLocation ? '#28a745' : '#dc3545',
-            padding: 8,
-            borderRadius: 8,
-            zIndex: 999,
-          }}
+          style={[
+            styles.toggleButton,
+            { backgroundColor: isSharingLocation ? '#28a745' : '#dc3545' },
+          ]}
         >
           <Text style={{ color: '#fff', fontWeight: '600' }}>
             {isSharingLocation ? 'Sharing: ON' : 'My Location'}
@@ -218,42 +235,42 @@ export default function DriversPage() {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <Text style={styles.heading}>Driver Details</Text>
 
-          <View style={styles.labelContainer}>
-            <Text style={styles.labelText}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
               Name <Text style={styles.required}>*</Text>
             </Text>
+            <TextInput
+              placeholder="Enter your name"
+              value={name}
+              onChangeText={setName}
+              style={styles.input}
+            />
           </View>
-          <TextInput
-            placeholder="Enter your name"
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-          />
 
-          <View style={styles.labelContainer}>
-            <Text style={styles.labelText}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
               Bus Number <Text style={styles.required}>*</Text>
             </Text>
+            <TextInput
+              placeholder="Enter bus number"
+              value={busNumber}
+              onChangeText={setBusNumber}
+              style={styles.input}
+            />
           </View>
-          <TextInput
-            placeholder="Enter bus number"
-            value={busNumber}
-            onChangeText={setBusNumber}
-            style={styles.input}
-          />
 
-          <View style={styles.labelContainer}>
-            <Text style={styles.labelText}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
               Phone Number <Text style={styles.required}>*</Text>
             </Text>
+            <TextInput
+              placeholder="Enter your number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              style={styles.input}
+            />
           </View>
-          <TextInput
-            placeholder="Enter your number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            style={styles.input}
-          />
 
           <TouchableOpacity
             style={[styles.button, loading && styles.disabledButton]}
@@ -300,16 +317,29 @@ export default function DriversPage() {
             style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]}
             onPress={() => {
               if (!existingDriverId) {
-                return Alert.alert('Driver Not Saved', 'Please save your details first.');
+                return Alert.alert('Driver Not Saved', 'Save your details first.');
               }
-              router.push({
-                pathname: '/map',
-                params: { driverId: existingDriverId },
-              });
+              router.push({ pathname: '/map', params: { driverId: existingDriverId } });
             }}
           >
             <Text style={styles.buttonText}>Start Journey Today</Text>
           </TouchableOpacity>
+
+          <View style={styles.messageBox}>
+            <Text style={styles.messageHeading}>Driver Message</Text>
+            <View style={styles.messageInputContainer}>
+              <TextInput
+                placeholder="Type a message to passengers..."
+                multiline
+                value={message}
+                onChangeText={setMessage}
+                style={styles.messageInput}
+              />
+              <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+                <Ionicons name="send" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ImageBackground>
@@ -317,16 +347,9 @@ export default function DriversPage() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  scrollContainer: {
-    paddingVertical: 30,
-  },
+  background: { flex: 1 },
+  container: { flex: 1, paddingHorizontal: 20 },
+  scrollContainer: { paddingVertical: 30 },
   heading: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -334,44 +357,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  routesHeading: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
+  routesHeading: { fontSize: 22, fontWeight: '700', marginBottom: 10 },
   routeCard: {
     backgroundColor: '#f2f2f2',
     padding: 12,
     borderRadius: 8,
     marginBottom: 15,
   },
-  routeTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  stopText: {
-    fontSize: 16,
-    marginLeft: 6,
-    marginBottom: 2,
-  },
-  labelContainer: {
-    marginBottom: 4,
-  },
-  labelText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  required: {
-    color: 'red',
-  },
+  routeTitle: { fontSize: 18, fontWeight: '600', marginBottom: 6 },
+  stopText: { fontSize: 16, marginLeft: 6, marginBottom: 2 },
+  inputGroup: { marginBottom: 15 },
+  label: { fontSize: 16, color: '#333' },
+  required: { color: 'red' },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: 'black',
     borderRadius: 8,
     padding: 14,
     fontSize: 16,
-    marginBottom: 15,
+    marginTop: 4,
   },
   button: {
     backgroundColor: '#000',
@@ -379,12 +383,44 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  disabledButton: {
-    backgroundColor: '#555',
+  disabledButton: { backgroundColor: '#555' },
+  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  toggleButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    padding: 8,
+    borderRadius: 8,
+    zIndex: 999,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+  messageBox: {
+    backgroundColor: '#ede58c',
+    borderRadius: 8,
+    padding: 14,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'black',
+  },
+  messageHeading: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  messageInputContainer: {
+    borderColor: 'black',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    minHeight: 120,
+  },
+  messageInput: {
+    flex: 1,
+    fontSize: 16,
+    textAlignVertical: 'top',
+    paddingRight: 10,
+  },
+  sendButton: {
+    backgroundColor: '#5fa6ed',
+    padding: 8,
+    borderRadius: 50,
   },
 });
