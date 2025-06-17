@@ -43,6 +43,10 @@ export default function RootLayout() {
       name="view-bus"
       options={{headerShown:false}}
       />
+      <Stack.Screen 
+      name="admin"
+      options={{headerShown:false}}
+      />
     </Stack>
   )
 }

@@ -37,7 +37,9 @@ const UsersPage = () => {
               <Text style={styles.cardText}>Passenger</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.card}>
+            <TouchableOpacity style={styles.card}
+             onPress={()=>router.push('/admin')}
+            >
               <Lock color="black" size={36} />
               <Text style={styles.cardText}>Admin</Text>
             </TouchableOpacity>
