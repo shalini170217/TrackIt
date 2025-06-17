@@ -23,9 +23,11 @@ export default function ViewBusScreen() {
           .from('passengers')
           .select('driver_id')
           .eq('auth_id', user.id)
-          .single();
+          .maybeSingle(); // ✅ FIXED: allows 0 or 1 rows without error
 
-        if (passengerError || !passenger) throw passengerError || new Error('Passenger profile not found');
+        if (passengerError) throw passengerError;
+        if (!passenger) throw new Error('Passenger profile not found'); // ✅ graceful error for 0 rows
+
         if (!passenger.driver_id) throw new Error('No driver assigned');
 
         // 3️⃣ Get passenger's current location
@@ -40,12 +42,14 @@ export default function ViewBusScreen() {
 
         // 4️⃣ Get driver's current location (from your real-time tracking system)
         const { data: driverLoc, error: driverError } = await supabase
-          .from('driver_locations') // You'll need to create this table
+          .from('driver_locations')
           .select('latitude, longitude')
           .eq('driver_id', passenger.driver_id)
-          .single();
+          .maybeSingle(); // ✅ safer for 0 or 1 rows
 
-        if (!driverError && driverLoc) {
+        if (driverError) throw driverError;
+
+        if (driverLoc) {
           setDriverLocation({
             latitude: driverLoc.latitude,
             longitude: driverLoc.longitude
@@ -57,9 +61,10 @@ export default function ViewBusScreen() {
           .from('routes')
           .select('id')
           .eq('driver_id', passenger.driver_id)
-          .single();
+          .maybeSingle(); // ✅ safer
 
-        if (routeError || !route) throw routeError || new Error('Route not found');
+        if (routeError) throw routeError;
+        if (!route) throw new Error('Route not found');
 
         const { data: stopsData, error: stopsError } = await supabase
           .from('stops')
@@ -68,7 +73,6 @@ export default function ViewBusScreen() {
 
         if (stopsError) throw stopsError;
 
-        // Sort stops by order and filter valid coordinates
         const validStops = (stopsData || [])
           .filter(stop => stop.latitude && stop.longitude)
           .sort((a, b) => a.order - b.order);
@@ -128,7 +132,7 @@ export default function ViewBusScreen() {
         />
       </Marker>
 
-      {/* Driver Marker (if available) */}
+      {/* Driver Marker */}
       {driverLocation && (
         <Marker coordinate={driverLocation} title="Your Bus">
           <Image
@@ -138,14 +142,14 @@ export default function ViewBusScreen() {
         </Marker>
       )}
 
-      {/* Bus Stop Markers */}
+      {/* Stops Markers */}
       {stops.map((stop) => (
         <Marker
           key={stop.id}
           coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
           title={stop.stop_name}
           description={`Stop #${stop.order}`}
-          pinColor="#FFD700" // Gold color for stops
+          pinColor="#FFD700"
         />
       ))}
 
@@ -156,19 +160,19 @@ export default function ViewBusScreen() {
             latitude: stop.latitude,
             longitude: stop.longitude
           }))}
-          strokeColor="#3498db" // Blue color for route
+          strokeColor="#3498db"
           strokeWidth={4}
         />
       )}
 
-      {/* Line from passenger to nearest stop (optional) */}
+      {/* Line from passenger to nearest stop */}
       {stops.length > 0 && (
         <Polyline
           coordinates={[
             passengerLocation,
             { latitude: stops[0].latitude, longitude: stops[0].longitude }
           ]}
-          strokeColor="#2ecc71" // Green color for connection
+          strokeColor="#2ecc71"
           strokeWidth={2}
           lineDashPattern={[5, 5]}
         />
