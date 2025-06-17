@@ -13,6 +13,7 @@ import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../src/lib/supabase';
 import { router } from 'expo-router';
+import * as Location from 'expo-location'; // ✅ Added for location tracking
 
 export default function DriversPage() {
   const [name, setName] = useState('');
@@ -22,9 +23,12 @@ export default function DriversPage() {
   const [existingDriverId, setExistingDriverId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [routesWithStops, setRoutesWithStops] = useState<any[]>([]);
+  const [isSharingLocation, setIsSharingLocation] = useState(false); // ✅ Toggle State
+  const [locationWatcher, setLocationWatcher] = useState<any>(null); // ✅ Watcher Ref
 
   useEffect(() => {
     fetchDriverDetails();
+    return () => stopSharingLocation(); // ✅ Cleanup on unmount
   }, []);
 
   const fetchDriverDetails = async () => {
@@ -130,6 +134,54 @@ export default function DriversPage() {
     });
   };
 
+  // ✅ Start Sharing Location
+  const startSharingLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      return Alert.alert('Permission Denied', 'Location permission is required.');
+    }
+
+    const user = (await supabase.auth.getUser()).data?.user;
+    if (!user || !existingDriverId) return;
+
+    const watcher = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 5000,
+        distanceInterval: 5,
+      },
+      async (location) => {
+        await supabase
+          .from('driver_locations')
+          .upsert({
+            driver_id: existingDriverId,
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            updated_at: new Date().toISOString(),
+          });
+      }
+    );
+
+    setLocationWatcher(watcher);
+  };
+
+  // ✅ Stop Sharing Location
+  const stopSharingLocation = () => {
+    if (locationWatcher) {
+      locationWatcher.remove();
+      setLocationWatcher(null);
+    }
+  };
+
+  const toggleLocationSharing = () => {
+    if (isSharingLocation) {
+      stopSharingLocation();
+    } else {
+      startSharingLocation();
+    }
+    setIsSharingLocation((prev) => !prev);
+  };
+
   if (fetching) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -140,124 +192,136 @@ export default function DriversPage() {
 
   return (
     <ImageBackground
-          source={require('../assets/images/yellowave.jpg')}
-          style={styles.background}
-          resizeMode="cover"
-        >
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.heading}>Driver Details</Text>
-
-        {/* ✅ Name with required symbol */}
-        <View style={styles.labelContainer}>
-          <Text style={styles.labelText}>
-            Name <Text style={styles.required}>*</Text>
-          </Text>
-        </View>
-        <TextInput
-          placeholder="Enter your name"
-          value={name}
-          onChangeText={setName}
-          style={styles.input}
-        />
-
-        {/* ✅ Bus Number with required symbol */}
-        <View style={styles.labelContainer}>
-          <Text style={styles.labelText}>
-            Bus Number <Text style={styles.required}>*</Text>
-          </Text>
-        </View>
-        <TextInput
-          placeholder="Enter bus number"
-          value={busNumber}
-          onChangeText={setBusNumber}
-          style={styles.input}
-        />
-
-        {/* ✅ Phone Number with required symbol */}
-        <View style={styles.labelContainer}>
-          <Text style={styles.labelText}>
-            Phone Number <Text style={styles.required}>*</Text>
-          </Text>
-        </View>
-        <TextInput
-          placeholder="Enter your number"
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          keyboardType="phone-pad"
-          style={styles.input}
-        />
-
+      source={require('../assets/images/yellowave.jpg')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.container}>
+        {/* ✅ Toggle Button */}
         <TouchableOpacity
-          style={[styles.button, loading && styles.disabledButton]}
-          onPress={handleSaveDriver}
-          disabled={loading}
+          onPress={toggleLocationSharing}
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            backgroundColor: isSharingLocation ? '#28a745' : '#dc3545',
+            padding: 8,
+            borderRadius: 8,
+            zIndex: 999,
+          }}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Saving...' : existingDriverId ? 'Update Details' : 'Save Driver'}
+          <Text style={{ color: '#fff', fontWeight: '600' }}>
+            {isSharingLocation ? 'Sharing: ON' : 'My Location'}
           </Text>
         </TouchableOpacity>
 
-        {existingDriverId && (
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#fcf805', marginTop: 16 }]}
-            onPress={handleCreateRoute}
-          >
-            <Text style={[styles.buttonText, { color: '#000' }]}>Create Route</Text>
-          </TouchableOpacity>
-        )}
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <Text style={styles.heading}>Driver Details</Text>
 
-        {/* ✅ ROUTES + STOPS DISPLAY */}
-        {routesWithStops.length > 0 && (
-          <View style={{ marginTop: 30 }}>
-            <Text style={styles.routesHeading}>Your Routes</Text>
-            {routesWithStops.map((route) => (
-              <View key={route.id} style={styles.routeCard}>
-                <Text style={styles.routeTitle}>🚌 {route.route_name}</Text>
-                {route.stops.length > 0 ? (
-                  route.stops
-                    .sort((a, b) => a.order - b.order)
-                    .map((stop: any) => (
-                      <Text key={stop.id} style={styles.stopText}>
-                        📍 {stop.stop_name}
-                      </Text>
-                    ))
-                ) : (
-                  <Text style={{ color: '#999', marginTop: 4 }}>No stops added yet</Text>
-                )}
-              </View>
-            ))}
+          <View style={styles.labelContainer}>
+            <Text style={styles.labelText}>
+              Name <Text style={styles.required}>*</Text>
+            </Text>
           </View>
-        )}
-<TouchableOpacity
-  style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]}
-  onPress={() => {
-    if (!existingDriverId) {
-      return Alert.alert('Driver Not Saved', 'Please save your details first.');
-    }
-    router.push({
-      pathname: '/map',
-      params: { driverId: existingDriverId },
-    });
-  }}
->
-  <Text style={styles.buttonText}>Start Journey Today</Text>
-</TouchableOpacity>
+          <TextInput
+            placeholder="Enter your name"
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+          />
 
+          <View style={styles.labelContainer}>
+            <Text style={styles.labelText}>
+              Bus Number <Text style={styles.required}>*</Text>
+            </Text>
+          </View>
+          <TextInput
+            placeholder="Enter bus number"
+            value={busNumber}
+            onChangeText={setBusNumber}
+            style={styles.input}
+          />
 
-      </ScrollView>
-    </SafeAreaView>
-     </ImageBackground>
+          <View style={styles.labelContainer}>
+            <Text style={styles.labelText}>
+              Phone Number <Text style={styles.required}>*</Text>
+            </Text>
+          </View>
+          <TextInput
+            placeholder="Enter your number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
+            style={styles.input}
+          />
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.disabledButton]}
+            onPress={handleSaveDriver}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Saving...' : existingDriverId ? 'Update Details' : 'Save Driver'}
+            </Text>
+          </TouchableOpacity>
+
+          {existingDriverId && (
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: '#fcf805', marginTop: 16 }]}
+              onPress={handleCreateRoute}
+            >
+              <Text style={[styles.buttonText, { color: '#000' }]}>Create Route</Text>
+            </TouchableOpacity>
+          )}
+
+          {routesWithStops.length > 0 && (
+            <View style={{ marginTop: 30 }}>
+              <Text style={styles.routesHeading}>Your Routes</Text>
+              {routesWithStops.map((route) => (
+                <View key={route.id} style={styles.routeCard}>
+                  <Text style={styles.routeTitle}>🚌 {route.route_name}</Text>
+                  {route.stops.length > 0 ? (
+                    route.stops
+                      .sort((a, b) => a.order - b.order)
+                      .map((stop: any) => (
+                        <Text key={stop.id} style={styles.stopText}>
+                          📍 {stop.stop_name}
+                        </Text>
+                      ))
+                  ) : (
+                    <Text style={{ color: '#999', marginTop: 4 }}>No stops added yet</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#d1ae3b', marginTop: 20 }]}
+            onPress={() => {
+              if (!existingDriverId) {
+                return Alert.alert('Driver Not Saved', 'Please save your details first.');
+              }
+              router.push({
+                pathname: '/map',
+                params: { driverId: existingDriverId },
+              });
+            }}
+          >
+            <Text style={styles.buttonText}>Start Journey Today</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-   background: {
+  background: {
     flex: 1,
   },
   container: {
     flex: 1,
-   
     paddingHorizontal: 20,
   },
   scrollContainer: {
