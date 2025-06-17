@@ -30,7 +30,9 @@ const UsersPage = () => {
               <Text style={styles.cardText}>Driver</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.card, styles.highlightCard]}>
+            <TouchableOpacity style={[styles.card, styles.highlightCard]}
+             onPress={()=>router.push('/pass')}
+            >
               <User color="black" size={36} />
               <Text style={styles.cardText}>Passenger</Text>
             </TouchableOpacity>

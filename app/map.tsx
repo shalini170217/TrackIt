@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Image, ActivityIndicator, Alert, Text } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../src/lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
@@ -72,6 +72,9 @@ export default function DriverMapScreen() {
         (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
       );
 
+      // Sort the stops by 'order' field to draw lines in the correct sequence
+      validStops.sort((a, b) => a.order - b.order);
+
       setStops(validStops);
     } catch (err: any) {
       Alert.alert('Unexpected Error', err.message);
@@ -98,6 +101,7 @@ export default function DriverMapScreen() {
           longitudeDelta: 0.01,
         }}
       >
+        {/* Driver location marker */}
         <Marker coordinate={location} title="Driver Location">
           <Image
             source={require('../assets/images/bus.png')}
@@ -106,6 +110,7 @@ export default function DriverMapScreen() {
           />
         </Marker>
 
+        {/* Stops markers */}
         {stops.map((stop) => (
           <Marker
             key={stop.id}
@@ -118,6 +123,18 @@ export default function DriverMapScreen() {
             pinColor="#fcba03"
           />
         ))}
+
+        {/* Polyline connecting stops */}
+        {stops.length > 1 && (
+          <Polyline
+            coordinates={stops.map((stop) => ({
+              latitude: stop.latitude,
+              longitude: stop.longitude,
+            }))}
+            strokeColor="#fcba03" // Line color
+            strokeWidth={4} // Line thickness
+          />
+        )}
       </MapView>
     </View>
   );

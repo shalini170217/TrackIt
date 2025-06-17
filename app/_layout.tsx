@@ -31,6 +31,14 @@ export default function RootLayout() {
       name="map"
       options={{headerShown:false}}
       />
+       <Stack.Screen 
+      name="passengers"
+      options={{headerShown:false}}
+      />
+<Stack.Screen 
+      name="pass"
+      options={{headerShown:false}}
+      />
     </Stack>
   )
 }
