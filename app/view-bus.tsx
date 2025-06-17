@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Alert, Image, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, Image, StyleSheet, Text } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../src/lib/supabase';
@@ -10,8 +10,11 @@ export default function ViewBusScreen() {
   const [stops, setStops] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [driverId, setDriverId] = useState<string | null>(null);
 
   useEffect(() => {
+    let subscription: any;
+
     (async () => {
       try {
         // 1️⃣ Get current logged-in user
@@ -23,12 +26,13 @@ export default function ViewBusScreen() {
           .from('passengers')
           .select('driver_id')
           .eq('auth_id', user.id)
-          .maybeSingle(); // ✅ FIXED: allows 0 or 1 rows without error
+          .maybeSingle();
 
         if (passengerError) throw passengerError;
-        if (!passenger) throw new Error('Passenger profile not found'); // ✅ graceful error for 0 rows
-
+        if (!passenger) throw new Error('Passenger profile not found');
         if (!passenger.driver_id) throw new Error('No driver assigned');
+
+        setDriverId(passenger.driver_id); // Save for realtime subscription
 
         // 3️⃣ Get passenger's current location
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -40,12 +44,12 @@ export default function ViewBusScreen() {
           longitude: passengerLoc.coords.longitude
         });
 
-        // 4️⃣ Get driver's current location (from your real-time tracking system)
+        // 4️⃣ Get driver's current location (initial load)
         const { data: driverLoc, error: driverError } = await supabase
           .from('driver_locations')
           .select('latitude, longitude')
           .eq('driver_id', passenger.driver_id)
-          .maybeSingle(); // ✅ safer for 0 or 1 rows
+          .maybeSingle();
 
         if (driverError) throw driverError;
 
@@ -61,7 +65,7 @@ export default function ViewBusScreen() {
           .from('routes')
           .select('id')
           .eq('driver_id', passenger.driver_id)
-          .maybeSingle(); // ✅ safer
+          .maybeSingle();
 
         if (routeError) throw routeError;
         if (!route) throw new Error('Route not found');
@@ -79,6 +83,27 @@ export default function ViewBusScreen() {
 
         setStops(validStops);
 
+        // ✅ 6️⃣ SUBSCRIBE to realtime updates for this driver's location
+        subscription = supabase
+          .channel(`realtime-driver-${passenger.driver_id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'driver_locations',
+              filter: `driver_id=eq.${passenger.driver_id}`,
+            },
+            (payload) => {
+              const updated = payload.new;
+              setDriverLocation({
+                latitude: updated.latitude,
+                longitude: updated.longitude,
+              });
+            }
+          )
+          .subscribe();
+
       } catch (err: any) {
         console.error(err);
         setError(err.message || 'Failed to load map data');
@@ -86,6 +111,10 @@ export default function ViewBusScreen() {
         setLoading(false);
       }
     })();
+
+    return () => {
+      if (subscription) supabase.removeChannel(subscription);
+    };
   }, []);
 
   if (loading) {
@@ -132,7 +161,7 @@ export default function ViewBusScreen() {
         />
       </Marker>
 
-      {/* Driver Marker */}
+      {/* Driver Marker (Realtime Updated) */}
       {driverLocation && (
         <Marker coordinate={driverLocation} title="Your Bus">
           <Image
@@ -149,7 +178,7 @@ export default function ViewBusScreen() {
           coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
           title={stop.stop_name}
           description={`Stop #${stop.order}`}
-          pinColor="#FFD700"
+          pinColor="#3f1778"
         />
       ))}
 

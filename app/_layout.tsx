@@ -39,6 +39,10 @@ export default function RootLayout() {
       name="pass"
       options={{headerShown:false}}
       />
+      <Stack.Screen 
+      name="view-bus"
+      options={{headerShown:false}}
+      />
     </Stack>
   )
 }
